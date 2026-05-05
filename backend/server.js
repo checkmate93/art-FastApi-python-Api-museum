@@ -7,6 +7,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.get("/", (req, res) => {
+    res.send("🎨 Art Curator AI backend is running");
+});
+
 app.post("/api/groq", async (req, res) => {
     const { title, artist } = req.body;
 
