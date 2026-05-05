@@ -7,6 +7,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ✅ FIX: homepage route
 app.get("/", (req, res) => {
     res.send("🎨 Art Curator AI backend is running");
 });
