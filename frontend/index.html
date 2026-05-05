@@ -143,7 +143,6 @@ button:disabled {
 </div>
 
 <script>
-const GROQ_API_KEY = "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";
 
 async function getArt() {
     const btn = document.getElementById('next-btn');
@@ -189,45 +188,15 @@ async function getAIFact(title, artist) {
     container.style.display = "block";
 
     try {
-       fetch("https://api.groq.com/openai/v1/chat/completions", {
+        // ✅ ΤΩΡΑ ΜΙΛΑΕΙ ΣΤΟ BACKEND ΣΟΥ (Render)
+        const response = await fetch("https://art-b2pg.onrender.com/api/groq", {
             method: "POST",
             headers: {
-                "Authorization": `Bearer ${GROQ_API_KEY}`,
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                model: "llama-3.3-70b-versatile",
-                messages: [
-                    {
-                        role: "system",
-                        content: `
-Είσαι κορυφαίος ιστορικός τέχνης.
-Δεν γράφεις γενικότητες.
-
-ΔΟΜΗ:
-1. Fun Fact πρώτα
-2. Ανάλυση έργου
-3. Context τέχνης
-`
-                    },
-                    {
-                        role: "user",
-                        content: `
-Έργο: "${title}"
-Καλλιτέχνης: "${artist}"
-
-Γράψε:
-🎯 Fun Fact:
-🎨 Ανάλυση:
-🧠 Context:
-
-150-220 λέξεις.
-Συγκεκριμένα στοιχεία, όχι γενικότητες.
-`
-                    }
-                ],
-                max_tokens: 900,
-                temperature: 0.85
+                title,
+                artist
             })
         });
 
@@ -242,12 +211,14 @@ async function getAIFact(title, artist) {
 
         factDiv.innerHTML = text;
 
-    } catch {
+    } catch (err) {
         factDiv.innerText = "Σφάλμα AI...";
+        console.error(err);
     }
 }
 
 window.onload = getArt;
+
 </script>
 
 </body>
