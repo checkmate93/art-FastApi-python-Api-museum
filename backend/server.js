@@ -34,15 +34,12 @@ app.post("/api/art-curate", async (req, res) => {
         const valid = (museumData.data || []).filter(a => a.image_id);
         if (valid.length === 0) throw new Error("No valid artworks");
 
-        // Ανακάτεμα για τυχαιότητα
         valid.sort(() => 0.5 - Math.random());
 
         let finalImageBase64 = null;
         let selectedArt = null;
 
-        // Δοκιμάζουμε να κατεβάσουμε την εικόνα απευθείας σε Buffer
         for (const art of valid) {
-            // Μικρότερο μέγεθος (600px) που σερβίρεται ταχύτατα και δεν μπλοκάρεται
             const targetUrl = `https://www.artic.edu/iiif/2/${art.image_id}/full/600,/0/default.jpg`;
             try {
                 const imgFetch = await fetch(targetUrl, {
@@ -64,58 +61,64 @@ app.post("/api/art-curate", async (req, res) => {
             }
         }
 
-        // Αν το Chicago μπλοκάρει τις IP, fallback σε εγγυημένο public domain open access
         if (!selectedArt || !finalImageBase64) {
-            const fallbackArt = valid[0];
-            selectedArt = fallbackArt;
-            finalImageBase64 = `https://picsum.photos/800/600?blur=1`; // safe fallback
+            selectedArt = valid[0];
+            finalImageBase64 = `https://picsum.photos/800/600?blur=1`;
         }
 
         const title = selectedArt.title || "Χωρίς Τίτλο";
         const artist = selectedArt.artist_title || "Άγνωστος Καλλιτέχνης";
 
-        // Κλήση Groq AI
+        // ============================
+        // 🤖 ΚΛΗΣΗ GROQ AI
+        // ============================
         let aiText = "Δεν ήταν δυνατή η φόρτωση ανάλυσης.";
-        const apiKey = process.env.GROQ_API_KEY;
+        const rawKey = process.env.GROQ_API_KEY || "";
+        const apiKey = rawKey.trim();
 
         if (apiKey) {
-            const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${apiKey.trim()}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    model: "llama-3.3-70b-versatile",
-                    messages: [
-                        {
-                            role: "system",
-                            content: `Είσαι κορυφαίος ιστορικός τέχνης, αλλά και ερευνητής σκοτεινών ιστοριών. 
-Σκοπός σου είναι να αντλείς πληροφορίες για τα πιο ΣΠΑΝΙΑ, ΠΕΡΙΕΡΓΑ, ΑΣΤΕΙΑ ή ΣΚΟΤΕΙΝΑ περιστατικά πίσω από κάθε πίνακα και τη ζωή του καλλιτέχνη. 
-ΜΗΝ γράφεις γενικότητες. Κάνε τον θεατή να εντυπωσιαστεί.
-Ξεκινάς πάντα με fun fact, μετά ανάλυση και μετά context.
-Διατήρησε επαγγελματικό αλλά μυστηριώδες ύφος.`
-                        },
-                        {
-                            role: "user",
-                            content: `Έργο: "${title}"\nΚαλλιτέχνης: "${artist}"\n\n🎯 Fun Fact:\n🎨 Ανάλυση:\n🧠 Context:\n150-200 λέξεις στα ελληνικά.`
-                        }
-                    ],
-                    max_tokens: 800,
-                    temperature: 0.8
-                })
-            });
+            try {
+                const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${apiKey}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: "llama-3.1-8b-instant",
+                        messages: [
+                            {
+                                role: "system",
+                                content: "Είσαι έμπειρος ιστορικός τέχνης. Γράψε ένα ενδιαφέρον σχόλιο στα ελληνικά με τα εξής μέρη: 🎯 Fun Fact, 🎨 Ανάλυση, 🧠 Context (συνολικά 120-160 λέξεις)."
+                            },
+                            {
+                                role: "user",
+                                content: `Πίνακας: "${title}", Καλλιτέχνης: "${artist}"\n🎯 Fun Fact:\n🎨 Ανάλυση:\n🧠 Context:`
+                            }
+                        ],
+                        max_tokens: 600,
+                        temperature: 0.7
+                    })
+                });
 
-            const groqData = await groqRes.json();
-            if (groqData.choices && groqData.choices[0]) {
-                aiText = groqData.choices[0].message.content;
+                const groqData = await groqRes.json();
+                
+                if (groqRes.ok && groqData.choices && groqData.choices[0]) {
+                    aiText = groqData.choices[0].message.content;
+                } else {
+                    console.error("Groq upstream error detail:", JSON.stringify(groqData));
+                }
+            } catch (aiErr) {
+                console.error("Groq fetch call error:", aiErr);
             }
+        } else {
+            console.error("GROQ_API_KEY is not defined in environment variables!");
         }
 
         res.json({
             title,
             artist,
-            imageUrl: finalImageBase64, // Η εικόνα επιστρέφει απευθείας έτοιμη μέσα στο JSON!
+            imageUrl: finalImageBase64,
             comment: aiText
         });
 
