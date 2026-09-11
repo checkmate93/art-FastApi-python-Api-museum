@@ -10,7 +10,7 @@ app.use(cors({
     allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "25mb" }));
 
 app.get("/", (req, res) => {
     res.send("🎨 Art Curator AI backend is running");
@@ -76,7 +76,9 @@ app.post("/api/art-curate", async (req, res) => {
         const rawKey = process.env.GROQ_API_KEY || "";
         const apiKey = rawKey.trim();
 
-        if (apiKey) {
+        if (!apiKey) {
+            console.error("GROQ_API_KEY IS NOT SET IN ENVIRONMENT!");
+        } else {
             try {
                 const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                     method: "POST",
@@ -106,13 +108,11 @@ app.post("/api/art-curate", async (req, res) => {
                 if (groqRes.ok && groqData.choices && groqData.choices[0]) {
                     aiText = groqData.choices[0].message.content;
                 } else {
-                    console.error("Groq upstream error detail:", JSON.stringify(groqData));
+                    console.error("Groq API error response:", JSON.stringify(groqData));
                 }
             } catch (aiErr) {
-                console.error("Groq fetch call error:", aiErr);
+                console.error("Groq network request failed:", aiErr);
             }
-        } else {
-            console.error("GROQ_API_KEY is not defined in environment variables!");
         }
 
         res.json({
