@@ -13,7 +13,7 @@ app.use(cors({
 app.use(express.json({ limit: "25mb" }));
 
 app.get("/", (req, res) => {
-    res.send("🎨 Art Curator AI backend is running");
+    res.send("🎨 Art Curator AI backend is running with OpenAI");
 });
 
 app.post("/api/art-curate", async (req, res) => {
@@ -21,6 +21,7 @@ app.post("/api/art-curate", async (req, res) => {
     const catQuery = category || "Impressionism";
 
     try {
+        // 1. Chicago Museum Artworks Search
         const page = Math.floor(Math.random() * 10) + 1;
         const museumUrl = `https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(catQuery)}&query[term][is_public_domain]=true&page=${page}&limit=12&fields=id,title,artist_title,image_id`;
         
@@ -39,6 +40,7 @@ app.post("/api/art-curate", async (req, res) => {
         let finalImageBase64 = null;
         let selectedArt = null;
 
+        // 2. Fetch Image και μετατροπή σε Base64 για να μην υπάρχει ποτέ θέμα 403 / CORB
         for (const art of valid) {
             const targetUrl = `https://www.artic.edu/iiif/2/${art.image_id}/full/600,/0/default.jpg`;
             try {
@@ -69,29 +71,27 @@ app.post("/api/art-curate", async (req, res) => {
         const title = selectedArt.title || "Χωρίς Τίτλο";
         const artist = selectedArt.artist_title || "Άγνωστος Καλλιτέχνης";
 
-        // ============================
-        // 🤖 ΚΛΗΣΗ GROQ AI
-        // ============================
+        // 3. Κλήση OpenAI API (gpt-4o-mini)
         let aiText = "Δεν ήταν δυνατή η φόρτωση ανάλυσης.";
-        const rawKey = process.env.GROQ_API_KEY || "";
+        const rawKey = process.env.OPENAI_API_KEY || "";
         const apiKey = rawKey.trim();
 
         if (!apiKey) {
-            console.error("GROQ_API_KEY is missing from environment variables!");
+            console.error("OPENAI_API_KEY is not defined in environment variables!");
         } else {
             try {
-                const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                const openAiRes = await fetch("https://api.openai.com/v1/chat/completions", {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${apiKey}`,
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        model: "llama-3.3-70b-versatile",
+                        model: "gpt-4o-mini",
                         messages: [
                             {
                                 role: "system",
-                                content: "Είσαι κορυφαίος ιστορικός τέχνης. Γράψε ένα ενδιαφέρον σχόλιο στα ελληνικά με τα εξής μέρη: 🎯 Fun Fact, 🎨 Ανάλυση, 🧠 Context (συνολικά 120-160 λέξεις)."
+                                content: "Είσαι κορυφαίος ιστορικός τέχνης και ερευνητής σκοτεινών ιστοριών. Γράψε ένα ενδιαφέρον, συναρπαστικό σχόλιο στα ελληνικά με τα εξής μέρη: 🎯 Fun Fact, 🎨 Ανάλυση, 🧠 Context (συνολικά 120-160 λέξεις)."
                             },
                             {
                                 role: "user",
@@ -103,15 +103,15 @@ app.post("/api/art-curate", async (req, res) => {
                     })
                 });
 
-                const groqData = await groqRes.json();
+                const openAiData = await openAiRes.json();
                 
-                if (groqRes.ok && groqData.choices && groqData.choices[0]) {
-                    aiText = groqData.choices[0].message.content;
+                if (openAiRes.ok && openAiData.choices && openAiData.choices[0]) {
+                    aiText = openAiData.choices[0].message.content;
                 } else {
-                    console.error("Groq API error response:", JSON.stringify(groqData));
+                    console.error("OpenAI API error response:", JSON.stringify(openAiData));
                 }
             } catch (aiErr) {
-                console.error("Groq network request failed:", aiErr);
+                console.error("OpenAI network request failed:", aiErr);
             }
         }
 
