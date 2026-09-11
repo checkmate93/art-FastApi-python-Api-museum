@@ -6,6 +6,9 @@
 <title>Art Curator AI</title>
 
 <style>
+/* =========================================
+   1. ΒΑΣΙΚΕΣ ΜΕΤΑΒΛΗΤΕΣ & RESET
+========================================= */
 :root { 
     --bg: #0f172a; 
     --panel-bg: #1e293b; 
@@ -27,9 +30,26 @@ body {
     overflow: hidden; 
 }
 
-#tv-safe-area { padding: 3vh 3vw; width: 100%; height: 100%; }
-#main-grid { display: flex; flex-direction: row; gap: 2vw; height: 100%; width: 100%; }
+/* =========================================
+   2. TV SAFE AREA & LAYOUT
+========================================= */
+#tv-safe-area { 
+    padding: 3vh 3vw; 
+    width: 100%; 
+    height: 100%; 
+}
 
+#main-grid { 
+    display: flex; 
+    flex-direction: row; 
+    gap: 2vw; 
+    height: 100%; 
+    width: 100%; 
+}
+
+/* =========================================
+   3. ΑΡΙΣΤΕΡΗ ΣΤΗΛΗ (Εικόνα)
+========================================= */
 .left-panel { 
     flex: 6.5; 
     display: flex; 
@@ -72,6 +92,9 @@ body {
 
 #enter-canvas-btn:hover { background: var(--accent); color: var(--bg); }
 
+/* =========================================
+   4. ΔΕΞΙΑ ΣΤΗΛΗ (Controls)
+========================================= */
 .right-panel { 
     flex: 3.5; 
     display: flex; 
@@ -103,12 +126,36 @@ select {
     flex-direction: column; 
 }
 
-#art-title { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
-.artist-name { font-size: 18px; color: var(--accent); margin-bottom: 15px; }
-#ai-fact { font-size: 20px; line-height: 1.6; color: var(--text-muted); }
+.info-box::-webkit-scrollbar { width: 6px; }
+.info-box::-webkit-scrollbar-track { background: transparent; }
+.info-box::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+
+#art-title { 
+    font-size: 24px; 
+    font-weight: bold; 
+    margin-bottom: 5px; 
+    line-height: 1.2; 
+}
+
+.artist-name { 
+    font-size: 18px; 
+    color: var(--accent); 
+    margin-bottom: 15px; 
+}
+
+#ai-fact { 
+    font-size: 20px; 
+    line-height: 1.6; 
+    color: var(--text-muted); 
+}
 #ai-fact strong { color: white; }
 
-.btn-group { display: flex; flex-direction: row; gap: 10px; }
+.btn-group { 
+    flex-shrink: 0; 
+    display: flex; 
+    flex-direction: row; 
+    gap: 10px; 
+}
 
 button.control-btn { 
     flex: 1; 
@@ -122,11 +169,16 @@ button.control-btn {
 
 #next-btn { background: var(--accent); color: #0f172a; }
 #next-btn:disabled { background: #475569; color: #94a3b8; cursor: not-allowed; }
+
 #auto-btn { background: #334155; color: white; border: 1px solid #475569; }
 #auto-btn.active { background: #ef4444; border-color: #ef4444; }
+
 #show-all-btn { background: #334155; color: white; border: 1px solid #475569; }
 #show-all-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* =========================================
+   5. ΛΕΙΤΟΥΡΓΙΑ ΚΑΜΒΑ
+========================================= */
 #fullscreen-overlay { 
     display: none; 
     position: fixed; 
@@ -134,19 +186,41 @@ button.control-btn {
     background: black; 
     z-index: 9999; 
     align-items: center; justify-content: center; 
+    padding: 20px; 
 }
 #fullscreen-image { width: 100%; height: 100%; object-fit: contain; }
+
 #fixed-back-btn { 
     position: absolute; top: 30px; left: 30px; 
     background: rgba(239, 68, 68, 0.9); color: white; 
     padding: 12px 24px; font-size: 18px; font-weight: bold; 
     border: none; border-radius: 10px; cursor: pointer; 
 }
+
+/* =========================================
+   6. RESPONSIVE DESIGN
+========================================= */
+@media (max-width: 850px) {
+    #tv-safe-area { padding: 15px; }
+    #main-grid { flex-direction: column; gap: 15px; }
+    .left-panel { flex: none; height: 40vh; padding: 10px; }
+    #enter-canvas-btn { padding: 8px 16px; font-size: 14px; margin-top: 8px; }
+    .right-panel { flex: 1; min-height: 0; gap: 10px; }
+    select { font-size: 16px; padding: 12px; }
+    .info-box { padding: 15px; }
+    #art-title { font-size: 20px; }
+    .artist-name { font-size: 16px; margin-bottom: 10px; }
+    #ai-fact { font-size: 16px; line-height: 1.5; }
+    .btn-group { gap: 8px; }
+    button.control-btn { font-size: 13px; padding: 12px 2px; }
+    #fixed-back-btn { top: 15px; left: 15px; padding: 10px 15px; font-size: 14px; }
+}
 </style>
 </head>
 
 <body>
 
+<!-- OVERLAY ΚΑΜΒΑ -->
 <div id="fullscreen-overlay">
     <button id="fixed-back-btn" onclick="exitCanvas()">⬅ ΕΠΙΣΤΡΟΦΗ</button>
     <img id="fullscreen-image" alt="Artwork fullscreen">
@@ -154,6 +228,8 @@ button.control-btn {
 
 <div id="tv-safe-area">
     <div id="main-grid">
+        
+        <!-- ΑΡΙΣΤΕΡΑ -->
         <div class="left-panel">
             <div class="image-container">
                 <img id="art-image" alt="Artwork display">
@@ -161,6 +237,7 @@ button.control-btn {
             <button id="enter-canvas-btn" onclick="enterCanvas()">🔍 Προβολή σε Καμβά</button>
         </div>
 
+        <!-- ΔΕΞΙΑ -->
         <div class="right-panel">
             <select id="category-select" onchange="loadCuratedArt()">
                 <option value="Impressionism">🎨 Ιμπρεσιονισμός</option>
@@ -182,71 +259,105 @@ button.control-btn {
                 <button id="auto-btn" class="control-btn" onclick="toggleAutoMode()">⏱️ AUTO (3λ)</button>
             </div>
         </div>
+
     </div>
 </div>
 
 <script>
 const BACKEND_URL = "https://art-b2pg.onrender.com";
 
+/* --- ΛΕΙΤΟΥΡΓΙΑ ΚΑΜΒΑ --- */
 function enterCanvas() {
     const mainImg = document.getElementById('art-image');
     if (!mainImg.src) return;
     document.getElementById('fullscreen-image').src = mainImg.src;
     document.getElementById('fullscreen-overlay').style.display = 'flex';
 }
-function exitCanvas() { document.getElementById('fullscreen-overlay').style.display = 'none'; }
 
-let autoInterval, isAutoMode = false;
+function exitCanvas() { 
+    document.getElementById('fullscreen-overlay').style.display = 'none'; 
+}
+
+/* --- AUTO MODE --- */
+let autoInterval;
+let isAutoMode = false;
+
 function toggleAutoMode() {
     const btn = document.getElementById('auto-btn');
     isAutoMode = !isAutoMode;
+    
     if (isAutoMode) {
-        btn.classList.add('active'); btn.innerText = "🛑 ΔΙΑΚΟΠΗ";
-        loadCuratedArt();
+        btn.classList.add('active'); 
+        btn.innerText = "🛑 ΔΙΑΚΟΠΗ";
+        loadCuratedArt(); 
+        
         if (autoInterval) clearInterval(autoInterval);
-        autoInterval = setInterval(loadCuratedArt, 180000);
+        autoInterval = setInterval(loadCuratedArt, 180000); 
     } else {
-        btn.classList.remove('active'); btn.innerText = "⏱️ AUTO (3λ)";
-        if (autoInterval) clearInterval(autoInterval);
+        btn.classList.remove('active'); 
+        btn.innerText = "⏱️ AUTO (3λ)";
+        
+        if (autoInterval) {
+            clearInterval(autoInterval);
+            autoInterval = null;
+        }
     }
 }
 
+/* --- ΓΡΗΓΟΡΗ ΕΜΦΑΝΙΣΗ ΚΕΙΜΕΝΟΥ --- */
 let currentFullText = "";
+
 function showAllText() {
     if (!currentFullText) return;
-    typingSession++;
-    document.getElementById('ai-fact').innerHTML = currentFullText;
-    document.getElementById('scrollable-info').scrollTop = 0;
-    document.getElementById('show-all-btn').disabled = true;
+    typingSession++; 
+    
+    const factEl = document.getElementById('ai-fact');
+    factEl.innerHTML = currentFullText; 
+    document.getElementById('scrollable-info').scrollTop = 0; 
+    document.getElementById('show-all-btn').disabled = true; 
 }
 
-let typingSession = 0;
+/* --- ΧΑΛΑΡΩΤΙΚΟ TYPEWRITER --- */
+let typingSession = 0; 
+
 function typeWriterHTML(element, htmlString) {
-    typingSession++;
-    const currentSession = typingSession;
+    typingSession++; 
+    const currentSession = typingSession; 
     element.innerHTML = "";
+    
     const container = document.getElementById('scrollable-info');
     let i = 0;
 
     function type() {
-        if (currentSession !== typingSession) return;
+        if (currentSession !== typingSession) return; 
+
         if (i < htmlString.length) {
             let char = htmlString.charAt(i);
             let delay = 10;
+
             if (char === '<') {
                 let tagEnd = htmlString.indexOf('>', i);
                 if (tagEnd !== -1) {
                     element.innerHTML += htmlString.substring(i, tagEnd + 1);
                     i = tagEnd + 1;
-                    delay = 0;
-                } else { element.innerHTML += char; i++; }
+                    delay = 0; 
+                } else {
+                    element.innerHTML += char;
+                    i++;
+                }
             } else {
                 element.innerHTML += char;
                 i++;
-                if (char === '.' || char === '!' || char === '?') delay += 2500;
-                else if (char === ':') delay += 1200;
-                else if (char === ',') delay += 200;
+                
+                if (char === '.' || char === '!' || char === '?') {
+                    delay += 3000; 
+                } else if (char === ':') {
+                    delay += 1500;
+                } else if (char === ',') {
+                    delay += 250; 
+                }
             }
+
             container.scrollTop = container.scrollHeight;
             setTimeout(type, delay);
         } else {
@@ -256,6 +367,7 @@ function typeWriterHTML(element, htmlString) {
     type();
 }
 
+/* --- ΦΟΡΤΩΣΗ ΕΡΓΟΥ & AI ΣΧΟΛΙΑΣΜΟΥ ΑΠΟ ΤΟ RENDER PROXY --- */
 async function loadCuratedArt() {
     const nextBtn = document.getElementById('next-btn');
     const showAllBtn = document.getElementById('show-all-btn');
@@ -265,48 +377,52 @@ async function loadCuratedArt() {
     const artistEl = document.getElementById('artist-name');
     const factEl = document.getElementById('ai-fact');
 
-    typingSession++;
-    currentFullText = "";
+    typingSession++; 
+    currentFullText = ""; 
     showAllBtn.disabled = true;
-    nextBtn.disabled = true;
+    nextBtn.disabled = true; 
     catSelect.disabled = true;
-    nextBtn.innerText = "...";
-    titleEl.innerText = "Αναζήτηση πίνακα...";
+    nextBtn.innerText = "..."; 
+    titleEl.innerText = "Αναζήτηση πίνακα..."; 
     factEl.innerHTML = "<em>Ο AI Curator ερευνά το έργο...</em>";
-    exitCanvas();
+    exitCanvas(); 
 
     try {
         const response = await fetch(`${BACKEND_URL}/api/art-curate`, {
-            method: "POST",
+            method: "POST", 
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ category: catSelect.value })
         });
-
-        if (!response.ok) throw new Error(`Backend response status: ${response.status}`);
+        
+        if (!response.ok) throw new Error(`Backend Error ${response.status}`);
         const data = await response.json();
 
-        titleEl.innerText = data.title;
-        artistEl.innerText = data.artist;
+        titleEl.innerText = data.title || "Χωρίς Τίτλο";
+        artistEl.innerText = data.artist || "Άγνωστος Καλλιτέχνης";
 
+        // Φόρτωση εικόνας μέσω του ασφαλούς Backend Proxy
         img.onload = () => { img.style.display = "block"; };
+        img.onerror = () => { console.error("Proxy image load failed"); };
         img.src = data.imageUrl;
 
-        let formattedText = data.comment.replace("🎯 Fun Fact:", "<strong>🎯 Fun Fact:</strong><br>")
-                                        .replace("🎨 Ανάλυση:", "<br><br><strong>🎨 Ανάλυση:</strong><br>")
-                                        .replace("🧠 Context:", "<br><br><strong>🧠 Context:</strong><br>");
-
+        let formattedText = (data.comment || "Δεν υπάρχει διαθέσιμο σχόλιο.")
+                                .replace("🎯 Fun Fact:", "<strong>🎯 Fun Fact:</strong><br>")
+                                .replace("🎨 Ανάλυση:", "<br><br><strong>🎨 Ανάλυση:</strong><br>")
+                                .replace("🧠 Context:", "<br><br><strong>🧠 Context:</strong><br>");
+        
         currentFullText = formattedText;
         showAllBtn.disabled = false;
+        
         typeWriterHTML(factEl, formattedText);
 
     } catch (err) {
         console.error("Fetch Error:", err);
-        titleEl.innerText = "Αδυναμία φόρτωσης.";
+        titleEl.innerText = "Αδυναμία φόρτωσης."; 
         artistEl.innerText = "Δοκιμάστε ξανά";
         factEl.innerText = "Πατήστε 'ΕΠΟΜΕΝΟ' για επανάληψη.";
     } finally {
-        nextBtn.disabled = false;
-        catSelect.disabled = false;
+        nextBtn.disabled = false; 
+        catSelect.disabled = false; 
         nextBtn.innerText = "ΕΠΟΜΕΝΟ";
     }
 }
