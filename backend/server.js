@@ -10,75 +10,75 @@ app.use(cors({
     allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-app.use(express.json({ limit: "25mb" }));
+app.use(express.json());
 
 app.get("/", (req, res) => {
-    res.send("🎨 Art Curator AI backend is running with OpenAI");
+    res.send("🎨 Art Curator AI backend is running");
 });
+
+// Χαρτογράφηση κατηγοριών σε όρους με άφθονους πίνακες στο Met Museum
+const CATEGORY_MAP = {
+    "Impressionism": "Monet OR Renoir OR Degas OR Impressionism",
+    "Renaissance": "Renaissance painting OR Botticelli OR Raphael OR Titian",
+    "Ancient Greek": "Greek antiquity OR Greek vase OR classical art",
+    "Japanese Art": "Japanese print OR Hokusai OR Hiroshige OR Ukiyo-e",
+    "Japanese": "Japanese print OR Hokusai OR Hiroshige OR Ukiyo-e",
+    "Greek": "Greek antiquity OR Greek vase OR classical art",
+    "Surrealism": "Modern painting OR Symbolism OR Fantastical"
+};
 
 app.post("/api/art-curate", async (req, res) => {
     const { category } = req.body;
-    const catQuery = category || "Impressionism";
+    const searchTerm = CATEGORY_MAP[category] || category || "Impressionism";
 
     try {
-        // 1. Chicago Museum Artworks Search
-        const page = Math.floor(Math.random() * 10) + 1;
-        const museumUrl = `https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(catQuery)}&query[term][is_public_domain]=true&page=${page}&limit=12&fields=id,title,artist_title,image_id`;
+        // 1. Αναζήτηση στο Met Museum ΜΟΝΟ για έργα με εικόνα
+        const searchUrl = `https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=${encodeURIComponent(searchTerm)}`;
+        const searchRes = await fetch(searchUrl);
+        if (!searchRes.ok) throw new Error("Met search request failed");
         
-        const museumRes = await fetch(museumUrl, {
-            headers: { "User-Agent": "Mozilla/5.0" }
-        });
-        
-        if (!museumRes.ok) throw new Error("Museum API failed");
-        const museumData = await museumRes.json();
-        
-        const valid = (museumData.data || []).filter(a => a.image_id);
-        if (valid.length === 0) throw new Error("No valid artworks");
+        const searchData = await searchRes.json();
+        const objectIDs = searchData.objectIDs || [];
 
-        valid.sort(() => 0.5 - Math.random());
+        if (objectIDs.length === 0) {
+            throw new Error(`No items found for category ${category}`);
+        }
 
-        let finalImageBase64 = null;
+        // Ανακάτεμα των IDs για να παίρνουμε κάθε φορά διαφορετικό έργο
+        const shuffled = objectIDs.slice(0, 100).sort(() => 0.5 - Math.random());
         let selectedArt = null;
 
-        // 2. Fetch Image και μετατροπή σε Base64 για να μην υπάρχει ποτέ θέμα 403 / CORB
-        for (const art of valid) {
-            const targetUrl = `https://www.artic.edu/iiif/2/${art.image_id}/full/600,/0/default.jpg`;
+        // Ψάχνουμε μέχρι να βρούμε έργο με έγκυρη εικόνα
+        for (let i = 0; i < Math.min(shuffled.length, 15); i++) {
+            const id = shuffled[i];
             try {
-                const imgFetch = await fetch(targetUrl, {
-                    headers: {
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-                        "Accept": "image/*"
+                const itemRes = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`);
+                if (itemRes.ok) {
+                    const item = await itemRes.json();
+                    const validImg = item.primaryImageSmall || item.primaryImage;
+                    if (validImg && validImg.startsWith("http")) {
+                        selectedArt = item;
+                        break;
                     }
-                });
-                
-                if (imgFetch.ok) {
-                    const buffer = await imgFetch.arrayBuffer();
-                    const b64 = Buffer.from(buffer).toString("base64");
-                    finalImageBase64 = `data:image/jpeg;base64,${b64}`;
-                    selectedArt = art;
-                    break;
                 }
             } catch (e) {
-                console.warn(`Skip art ${art.id}`);
+                // Συνέχιση στο επόμενο
             }
         }
 
-        if (!selectedArt || !finalImageBase64) {
-            selectedArt = valid[0];
-            finalImageBase64 = `https://picsum.photos/800/600?blur=1`;
+        if (!selectedArt) {
+            throw new Error("Could not find an artwork with public image");
         }
 
         const title = selectedArt.title || "Χωρίς Τίτλο";
-        const artist = selectedArt.artist_title || "Άγνωστος Καλλιτέχνης";
+        const artist = selectedArt.artistDisplayName || selectedArt.culture || "Άγνωστος Καλλιτέχνης";
+        const imageUrl = selectedArt.primaryImageSmall || selectedArt.primaryImage;
 
-        // 3. Κλήση OpenAI API (gpt-4o-mini)
+        // 2. OpenAI Ανάλυση (gpt-4o-mini)
         let aiText = "Δεν ήταν δυνατή η φόρτωση ανάλυσης.";
-        const rawKey = process.env.OPENAI_API_KEY || "";
-        const apiKey = rawKey.trim();
+        const apiKey = (process.env.OPENAI_API_KEY || "").trim();
 
-        if (!apiKey) {
-            console.error("OPENAI_API_KEY is not defined in environment variables!");
-        } else {
+        if (apiKey) {
             try {
                 const openAiRes = await fetch("https://api.openai.com/v1/chat/completions", {
                     method: "POST",
@@ -91,42 +91,43 @@ app.post("/api/art-curate", async (req, res) => {
                         messages: [
                             {
                                 role: "system",
-                                content: "Είσαι κορυφαίος ιστορικός τέχνης και ερευνητής σκοτεινών ιστοριών. Γράψε ένα ενδιαφέρον, συναρπαστικό σχόλιο στα ελληνικά με τα εξής μέρη: 🎯 Fun Fact, 🎨 Ανάλυση, 🧠 Context (συνολικά 120-160 λέξεις)."
+                                content: "Είσαι κορυφαίος ιστορικός τέχνης. Γράψε ένα καθηλωτικό σχόλιο στα ελληνικά με τα εξής μέρη: 🎯 Fun Fact, 🎨 Ανάλυση, 🧠 Context (συνολικά 110-140 λέξεις)."
                             },
                             {
                                 role: "user",
-                                content: `Πίνακας: "${title}", Καλλιτέχνης: "${artist}"\n🎯 Fun Fact:\n🎨 Ανάλυση:\n🧠 Context:`
+                                content: `Πίνακας/Έργο: "${title}", Δημιουργός/Πολιτισμός: "${artist}"\n🎯 Fun Fact:\n🎨 Ανάλυση:\n🧠 Context:`
                             }
                         ],
-                        max_tokens: 600,
+                        max_tokens: 500,
                         temperature: 0.7
                     })
                 });
 
                 const openAiData = await openAiRes.json();
-                
                 if (openAiRes.ok && openAiData.choices && openAiData.choices[0]) {
                     aiText = openAiData.choices[0].message.content;
                 } else {
-                    console.error("OpenAI API error response:", JSON.stringify(openAiData));
+                    console.error("OpenAI error:", openAiData);
                 }
-            } catch (aiErr) {
-                console.error("OpenAI network request failed:", aiErr);
+            } catch (openAiErr) {
+                console.error("OpenAI fetch failed:", openAiErr);
             }
         }
 
         res.json({
             title,
             artist,
-            imageUrl: finalImageBase64,
+            imageUrl,
             comment: aiText
         });
 
     } catch (err) {
-        console.error("Backend Error:", err);
-        res.status(500).json({ error: "Failed to curate artwork", details: err.message });
+        console.error("Curate Error:", err);
+        res.status(500).json({ error: "Failed to fetch artwork", details: err.message });
     }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
+});
