@@ -1,87 +1,65 @@
-import express from "express";
-import fetch from "node-fetch";
-import cors from "cors";
+const express = require('express');
+const cors = require('cors');
+const { Groq } = require('groq-sdk');
 
 const app = express();
+const PORT = process.env.PORT || 10000;
 
-app.use(cors());
+// Ενεργοποίηση CORS για να επιτρέπονται κλήσεις από το GitHub Pages
+app.use(cors({
+  origin: '*'
+}));
+
 app.use(express.json());
 
-// =======================
-// 🏠 HEALTH CHECK ROUTE
-// =======================
-app.get("/", (req, res) => {
-    res.send("🎨 Art Curator AI backend is running");
+// Αρχικοποίηση του Groq client με το API key από το Environment
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY
 });
 
-// =======================
-// 🤖 AI ROUTE
-// =======================
-app.post("/api/groq", async (req, res) => {
+// Endpoint ελέγχου λειτουργίας (Health check)
+app.get('/', (req, res) => {
+  res.send('Art Curator Backend is Running!');
+});
+
+// Endpoint σχολιασμού έργου τέχνης
+app.post('/api/curate', async (req, res) => {
+  try {
     const { title, artist } = req.body;
 
-    if (!title || !artist) {
-        return res.status(400).json({
-            error: "Missing title or artist"
-        });
+    if (!title) {
+      return res.status(400).json({ error: "Missing artwork title" });
     }
 
-    try {
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                model: "llama-3.3-70b-versatile",
-                messages: [
-    {
-        role: "system",
-        content: `Είσαι κορυφαίος ιστορικός τέχνης, αλλά και ερευνητής σκοτεινών ιστοριών. 
-Σκοπός σου είναι να αντλείς πληροφορίες (σαν να ψάχνεις βαθιά στην Wikipedia) για τα πιο ΣΠΑΝΙΑ, ΠΕΡΙΕΡΓΑ, ΑΣΤΕΙΑ ή ΣΚΟΤΕΙΝΑ περιστατικά πίσω από κάθε πίνακα και τη ζωή του καλλιτέχνη. 
-ΜΗΝ γράφεις βαρετές γενικότητες. Κάνε τον θεατή να εντυπωσιαστεί.
-Ξεκινάς πάντα με fun fact, μετά ανάλυση και μετά context.
-Διατήρησε επαγγελματικό αλλά μυστηριώδες ύφος.`
-    },
-    {
-        role: "user",
-        content: `Έργο: "${title}"\nΚαλλιτέχνης: "${artist}"\n\n🎯 Fun Fact:\n🎨 Ανάλυση:\n🧠 Context:\n150-220 λέξεις`
-    }
-],
-                max_tokens: 900,
-                temperature: 0.85
-            })
-        });
-
-        const data = await response.json();
-
-        // =======================
-        // ❗ SAFE RESPONSE CHECK
-        // =======================
-        if (!data || !data.choices || !data.choices[0]) {
-            console.error("Groq error response:", data);
-            return res.status(500).json({
-                error: "Invalid AI response",
-                raw: data
-            });
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: "Είσαι ένας έμπειρος ιστορικός τέχνης και επιμελητής μουσείου. Γράψε ένα σύντομο, ενδιαφέρον σχόλιο 2-3 προτάσεων στα ελληνικά για το παρακάτω έργο τέχνης."
+        },
+        {
+          role: "user",
+          content: `Έργο: "${title}", Καλλιτέχνης: "${artist || 'Άγνωστος'}"`
         }
+      ],
+      // Χρήση ενεργού, έγκυρου μοντέλου της Groq
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 150
+    });
 
-        res.json(data);
+    const comment = completion.choices[0]?.message?.content || "Δεν υπάρχει διαθέσιμο σχόλιο.";
+    res.json({ comment });
 
-    } catch (err) {
-        console.error("Server error:", err);
-        res.status(500).json({
-            error: "AI request failed"
-        });
-    }
+  } catch (error) {
+    console.error("Groq API Error:", error);
+    res.status(500).json({ 
+      error: "Internal Server Error", 
+      details: error.message 
+    });
+  }
 });
 
-// =======================
-// 🚀 START SERVER
-// =======================
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-    console.log("Server running on port " + PORT);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
 });
