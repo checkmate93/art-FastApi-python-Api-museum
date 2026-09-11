@@ -16,13 +16,44 @@ app.get("/", (req, res) => {
     res.send("🎨 Art Curator AI backend is running");
 });
 
-// Ενιαίο endpoint που φέρνει ΚΑΙ τον πίνακα ΚΑΙ την ανάλυση Groq
+// ==========================================
+// 🖼️ IMAGE PROXY (Λύνει το 403 Forbidden)
+// ==========================================
+app.get("/api/proxy-image", async (req, res) => {
+    const imageUrl = req.query.url;
+    if (!imageUrl) return res.status(400).send("Missing url param");
+
+    try {
+        const imgRes = await fetch(imageUrl, {
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            }
+        });
+
+        if (!imgRes.ok) {
+            return res.status(imgRes.status).send("Failed to fetch upstream image");
+        }
+
+        const contentType = imgRes.headers.get("content-type") || "image/jpeg";
+        res.setHeader("Content-Type", contentType);
+        res.setHeader("Cache-Control", "public, max-age=86400"); // Cache 1 ημέρα
+
+        // Στέλνουμε το binary stream της εικόνας κατευθείαν στον client
+        imgRes.body.pipe(res);
+    } catch (err) {
+        console.error("Proxy error:", err);
+        res.status(500).send("Proxy error");
+    }
+});
+
+// ==========================================
+// 🎨 ART & AI CURATE ROUTE
+// ==========================================
 app.post("/api/art-curate", async (req, res) => {
     const { category } = req.body;
     const catQuery = category || "Impressionism";
 
     try {
-        // 1. Το backend καλεί το Chicago API (χωρίς browser restrictions)
         const page = Math.floor(Math.random() * 15) + 1;
         const museumUrl = `https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(catQuery)}&query[term][is_public_domain]=true&page=${page}&limit=10&fields=id,title,artist_title,image_id`;
         
@@ -37,12 +68,14 @@ app.post("/api/art-curate", async (req, res) => {
         if (valid.length === 0) throw new Error("No valid artworks");
 
         const art = valid[Math.floor(Math.random() * valid.length)];
-        const imageUrl = `https://www.artic.edu/iiif/2/${art.image_id}/full/843,/0/default.jpg`;
+        const rawImageUrl = `https://www.artic.edu/iiif/2/${art.image_id}/full/843,/0/default.jpg`;
         const title = art.title || "Χωρίς Τίτλο";
         const artist = art.artist_title || "Άγνωστος Καλλιτέχνης";
 
-        // 2. Το backend καλεί το Groq AI
-        let aiText = "Δεν ήταν δυνατή η ανάλυση.";
+        // Επιστρέφουμε την εικόνα ΜΕΣΩ του δικού μας proxy endpoint
+        const safeImageUrl = `https://art-b2pg.onrender.com/api/proxy-image?url=${encodeURIComponent(rawImageUrl)}`;
+
+        let aiText = "Δεν ήταν δυνατή η φόρτωση ανάλυσης.";
         const apiKey = process.env.GROQ_API_KEY;
 
         if (apiKey) {
@@ -79,11 +112,10 @@ app.post("/api/art-curate", async (req, res) => {
             }
         }
 
-        // Επιστροφή όλων έτοιμων στο Frontend
         res.json({
             title,
             artist,
-            imageUrl,
+            imageUrl: safeImageUrl,
             comment: aiText
         });
 
