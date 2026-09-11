@@ -77,7 +77,7 @@ app.post("/api/art-curate", async (req, res) => {
         const apiKey = rawKey.trim();
 
         if (!apiKey) {
-            console.error("GROQ_API_KEY IS NOT SET IN ENVIRONMENT!");
+            console.error("GROQ_API_KEY is missing from environment variables!");
         } else {
             try {
                 const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -87,11 +87,11 @@ app.post("/api/art-curate", async (req, res) => {
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        model: "llama-3.1-8b-instant",
+                        model: "llama-3.3-70b-versatile",
                         messages: [
                             {
                                 role: "system",
-                                content: "Είσαι έμπειρος ιστορικός τέχνης. Γράψε ένα ενδιαφέρον σχόλιο στα ελληνικά με τα εξής μέρη: 🎯 Fun Fact, 🎨 Ανάλυση, 🧠 Context (συνολικά 120-160 λέξεις)."
+                                content: "Είσαι κορυφαίος ιστορικός τέχνης. Γράψε ένα ενδιαφέρον σχόλιο στα ελληνικά με τα εξής μέρη: 🎯 Fun Fact, 🎨 Ανάλυση, 🧠 Context (συνολικά 120-160 λέξεις)."
                             },
                             {
                                 role: "user",
