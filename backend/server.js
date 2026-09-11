@@ -23,42 +23,45 @@ app.get("/", (req, res) => {
 });
 
 // ==========================================
-// 🖼️ IMAGE PROXY (Λύνει το 403 Forbidden & CORB)
+// 🖼️ IMAGE PROXY (Μιμείται εσωτερικό request του Chicago Museum)
 // ==========================================
 app.get("/api/proxy-image", async (req, res) => {
     let imageUrl = req.query.url;
     if (!imageUrl) return res.status(400).send("Missing url parameter");
 
     try {
-        // Καθαρισμός από τυχόν double-encoding (%252F, %252C κτλ.)
+        // Πλήρες ξεδίπλωμα τυχόν double-encoding (%252F, %252C)
         while (imageUrl.includes("%")) {
             const decoded = decodeURIComponent(imageUrl);
             if (decoded === imageUrl) break;
             imageUrl = decoded;
         }
 
+        // Στέλνουμε Referer και Origin του artic.edu για να προσπεράσουμε το Cloudflare bot/hotlink block
         const imgRes = await fetch(imageUrl, {
             headers: {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Referer": "https://www.artic.edu/",
+                "Origin": "https://www.artic.edu",
                 "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
             }
         });
 
         if (!imgRes.ok) {
-            console.error(`Upstream image rejected: ${imgRes.status} for URL: ${imageUrl}`);
+            console.error(`Chicago CDN rejected with status: ${imgRes.status} for URL: ${imageUrl}`);
             return res.status(imgRes.status).send("Failed to fetch upstream image");
         }
 
         const contentType = imgRes.headers.get("content-type") || "image/jpeg";
         res.setHeader("Content-Type", contentType);
-        res.setHeader("Cache-Control", "public, max-age=86400"); // Cache για 1 ημέρα
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Cache-Control", "public, max-age=86400");
 
-        // Ασφαλής αποστολή binary δεδομένων για node-fetch v3
         const arrayBuffer = await imgRes.arrayBuffer();
         res.send(Buffer.from(arrayBuffer));
 
     } catch (err) {
-        console.error("Image proxy exception:", err);
+        console.error("Image proxy error:", err);
         res.status(500).send("Proxy error");
     }
 });
@@ -71,29 +74,29 @@ app.post("/api/art-curate", async (req, res) => {
     const catQuery = category || "Impressionism";
 
     try {
-        // 1. Το Render καλεί το Chicago Art Institute API
         const page = Math.floor(Math.random() * 15) + 1;
         const museumUrl = `https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(catQuery)}&query[term][is_public_domain]=true&page=${page}&limit=10&fields=id,title,artist_title,image_id`;
         
         const museumRes = await fetch(museumUrl, {
-            headers: { "User-Agent": "ArtCuratorBot/1.0" }
+            headers: { 
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Referer": "https://www.artic.edu/" 
+            }
         });
         
-        if (!museumRes.ok) throw new Error(`Museum API returned ${museumRes.status}`);
+        if (!museumRes.ok) throw new Error(`Museum API returned status: ${museumRes.status}`);
         const museumData = await museumRes.json();
         
         const valid = (museumData.data || []).filter(a => a.image_id);
-        if (valid.length === 0) throw new Error("No public domain artworks with image found");
+        if (valid.length === 0) throw new Error("No valid artworks with image_id found");
 
         const art = valid[Math.floor(Math.random() * valid.length)];
         const rawImageUrl = `https://www.artic.edu/iiif/2/${art.image_id}/full/843,/0/default.jpg`;
         const title = art.title || "Χωρίς Τίτλο";
         const artist = art.artist_title || "Άγνωστος Καλλιτέχνης";
 
-        // Η εικόνα περνάει μέσα από το δικό μας proxy route για να μην μπλοκάρεται από τον browser
         const safeImageUrl = `https://art-b2pg.onrender.com/api/proxy-image?url=${rawImageUrl}`;
 
-        // 2. Το Render καλεί τη Groq API
         let aiText = "Δεν ήταν δυνατή η φόρτωση ανάλυσης.";
         const apiKey = process.env.GROQ_API_KEY;
 
@@ -139,7 +142,7 @@ app.post("/api/art-curate", async (req, res) => {
         });
 
     } catch (err) {
-        console.error("Backend Error:", err);
+        console.error("Art Curate Exception:", err);
         res.status(500).json({ error: "Failed to curate artwork", details: err.message });
     }
 });
