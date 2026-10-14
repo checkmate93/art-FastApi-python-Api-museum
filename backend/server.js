@@ -32,42 +32,58 @@ app.post("/api/art-curate", async (req, res) => {
     const searchTerm = CATEGORY_MAP[category] || category || "Impressionism";
 
     try {
-        // 1. Αναζήτηση στο Met Museum ΜΟΝΟ για έργα με εικόνα
-        const searchUrl = `https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=${encodeURIComponent(searchTerm)}`;
-        const searchRes = await fetch(searchUrl);
-        if (!searchRes.ok) throw new Error("Met search request failed");
+        let objectIDs = [];
         
-        const searchData = await searchRes.json();
-        const objectIDs = searchData.objectIDs || [];
-
-        if (objectIDs.length === 0) {
-            throw new Error(`No items found for category ${category}`);
+        // 1. Προσπάθεια αναζήτησης στο Met Museum
+        try {
+            const searchUrl = `https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=${encodeURIComponent(searchTerm)}`;
+            const searchRes = await fetch(searchUrl);
+            if (searchRes.ok) {
+                const searchData = await searchRes.json();
+                objectIDs = searchData.objectIDs || [];
+            }
+        } catch (metErr) {
+            console.error("Met Search API connection error:", metErr.message);
         }
 
-        // Ανακάτεμα των IDs για να παίρνουμε κάθε φορά διαφορετικό έργο
-        const shuffled = objectIDs.slice(0, 100).sort(() => 0.5 - Math.random());
         let selectedArt = null;
 
-        // Ψάχνουμε μέχρι να βρούμε έργο με έγκυρη εικόνα
-        for (let i = 0; i < Math.min(shuffled.length, 15); i++) {
-            const id = shuffled[i];
-            try {
-                const itemRes = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`);
-                if (itemRes.ok) {
-                    const item = await itemRes.json();
-                    const validImg = item.primaryImageSmall || item.primaryImage;
-                    if (validImg && validImg.startsWith("http")) {
-                        selectedArt = item;
-                        break;
+        // Αν βρήκε αντικείμενα από την αναζήτηση, ψάξε για ένα με έγκυρη εικόνα
+        if (objectIDs.length > 0) {
+            const shuffled = objectIDs.slice(0, 100).sort(() => 0.5 - Math.random());
+            for (let i = 0; i < Math.min(shuffled.length, 25); i++) {
+                const id = shuffled[i];
+                try {
+                    const itemRes = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`);
+                    if (itemRes.ok) {
+                        const item = await itemRes.json();
+                        const validImg = item.primaryImageSmall || item.primaryImage;
+                        if (validImg && validImg.startsWith("http")) {
+                            selectedArt = item;
+                            break;
+                        }
                     }
+                } catch (e) {
+                    // Συνέχιση στο επόμενο
                 }
-            } catch (e) {
-                // Συνέχιση στο επόμενο
+            }
+        }
+
+        // Αν αποτύχει η αναζήτηση ή δεν βρεθεί εικόνα, φορτώνουμε έναν σίγουρο πίνακα (Fallback)
+        if (!selectedArt) {
+            console.log("Using fallback artwork...");
+            try {
+                const fallbackRes = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/436532`); // Van Gogh - Wheat Field
+                if (fallbackRes.ok) {
+                    selectedArt = await fallbackRes.json();
+                }
+            } catch (fallbackErr) {
+                console.error("Fallback artwork failed:", fallbackErr.message);
             }
         }
 
         if (!selectedArt) {
-            throw new Error("Could not find an artwork with public image");
+            throw new Error("Could not retrieve any artwork details");
         }
 
         const title = selectedArt.title || "Χωρίς Τίτλο";
@@ -107,7 +123,7 @@ app.post("/api/art-curate", async (req, res) => {
                 if (openAiRes.ok && openAiData.choices && openAiData.choices[0]) {
                     aiText = openAiData.choices[0].message.content;
                 } else {
-                    console.error("OpenAI error:", openAiData);
+                    console.error("OpenAI error response:", openAiData);
                 }
             } catch (openAiErr) {
                 console.error("OpenAI fetch failed:", openAiErr);
