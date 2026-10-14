@@ -7,7 +7,7 @@
 
 <style>
 /* =========================================
-   1. ΒΑΣΙΚΕΣ ΜΕΤΑΒΛΗΤΕΣ & RESET
+    1. ΒΑΣΙΚΕΣ ΜΕΤΑΒΛΗΤΕΣ & RESET
 ========================================= */
 :root { 
     --bg: #0f172a; 
@@ -31,7 +31,7 @@ body {
 }
 
 /* =========================================
-   2. TV SAFE AREA & LAYOUT
+    2. TV SAFE AREA & LAYOUT
 ========================================= */
 #tv-safe-area { 
     padding: 3vh 3vw; 
@@ -48,7 +48,7 @@ body {
 }
 
 /* =========================================
-   3. ΑΡΙΣΤΕΡΗ ΣΤΗΛΗ (Εικόνα)
+    3. ΑΡΙΣΤΕΡΗ ΣΤΗΛΗ (Εικόνα)
 ========================================= */
 .left-panel { 
     flex: 6.5; 
@@ -93,7 +93,7 @@ body {
 #enter-canvas-btn:hover { background: var(--accent); color: var(--bg); }
 
 /* =========================================
-   4. ΔΕΞΙΑ ΣΤΗΛΗ (Controls)
+    4. ΔΕΞΙΑ ΣΤΗΛΗ (Controls)
 ========================================= */
 .right-panel { 
     flex: 3.5; 
@@ -177,7 +177,7 @@ button.control-btn {
 #show-all-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* =========================================
-   5. ΛΕΙΤΟΥΡΓΙΑ ΚΑΜΒΑ
+    5. ΛΕΙΤΟΥΡΓΙΑ ΚΑΜΒΑ
 ========================================= */
 #fullscreen-overlay { 
     display: none; 
@@ -198,7 +198,7 @@ button.control-btn {
 }
 
 /* =========================================
-   6. RESPONSIVE DESIGN
+    6. RESPONSIVE DESIGN
 ========================================= */
 @media (max-width: 850px) {
     #tv-safe-area { padding: 15px; }
@@ -406,9 +406,9 @@ async function loadCuratedArt() {
         img.src = data.imageUrl;
 
         let formattedText = (data.comment || "Δεν υπάρχει διαθέσιμο σχόλιο.")
-                                .replace("🎯 Fun Fact:", "<strong>🎯 Fun Fact:</strong><br>")
-                                .replace("🎨 Ανάλυση:", "<br><br><strong>🎨 Ανάλυση:</strong><br>")
-                                .replace("🧠 Context:", "<br><br><strong>🧠 Context:</strong><br>");
+                            .replace("🎯 Fun Fact:", "<strong>🎯 Fun Fact:</strong><br>")
+                            .replace("🎨 Ανάλυση:", "<br><br><strong>🎨 Ανάλυση:</strong><br>")
+                            .replace("🧠 Context:", "<br><br><strong>🧠 Context:</strong><br>");
         
         currentFullText = formattedText;
         showAllBtn.disabled = false;
