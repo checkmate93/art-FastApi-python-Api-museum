@@ -16,25 +16,24 @@ app.get("/", (req, res) => {
     res.send("🎨 Art Curator AI backend is running");
 });
 
-// Χαρτογράφηση κατηγοριών σε όρους με άφθονους πίνακες στο Met Museum
 const CATEGORY_MAP = {
-    "Impressionism": "Monet OR Renoir OR Degas OR Impressionism",
-    "Renaissance": "Renaissance painting OR Botticelli OR Raphael OR Titian",
-    "Ancient Greek": "Greek antiquity OR Greek vase OR classical art",
-    "Japanese Art": "Japanese print OR Hokusai OR Hiroshige OR Ukiyo-e",
-    "Japanese": "Japanese print OR Hokusai OR Hiroshige OR Ukiyo-e",
-    "Greek": "Greek antiquity OR Greek vase OR classical art",
-    "Surrealism": "Modern painting OR Symbolism OR Fantastical"
+    "Impressionism": "Monet",
+    "Renaissance": "Raphael",
+    "Greek": "Greek",
+    "Japanese": "Hokusai",
+    "Surrealism": "Dalí"
 };
+
+// Polloi sigouroi pinakes gia fallback an to Met API kathusterisei
+const FALLBACK_OBJECTS = [436532, 438012, 436524, 437980, 436535, 437052];
 
 app.post("/api/art-curate", async (req, res) => {
     const { category } = req.body;
-    const searchTerm = CATEGORY_MAP[category] || category || "Impressionism";
+    const searchTerm = CATEGORY_MAP[category] || "Monet";
 
     try {
         let objectIDs = [];
         
-        // 1. Προσπάθεια αναζήτησης στο Met Museum
         try {
             const searchUrl = `https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=${encodeURIComponent(searchTerm)}`;
             const searchRes = await fetch(searchUrl);
@@ -43,15 +42,14 @@ app.post("/api/art-curate", async (req, res) => {
                 objectIDs = searchData.objectIDs || [];
             }
         } catch (metErr) {
-            console.error("Met Search API connection error:", metErr.message);
+            console.error("Met Search Error:", metErr.message);
         }
 
         let selectedArt = null;
 
-        // Αν βρήκε αντικείμενα από την αναζήτηση, ψάξε για ένα με έγκυρη εικόνα
         if (objectIDs.length > 0) {
-            const shuffled = objectIDs.slice(0, 100).sort(() => 0.5 - Math.random());
-            for (let i = 0; i < Math.min(shuffled.length, 25); i++) {
+            const shuffled = objectIDs.slice(0, 80).sort(() => 0.5 - Math.random());
+            for (let i = 0; i < Math.min(shuffled.length, 20); i++) {
                 const id = shuffled[i];
                 try {
                     const itemRes = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`);
@@ -63,34 +61,23 @@ app.post("/api/art-curate", async (req, res) => {
                             break;
                         }
                     }
-                } catch (e) {
-                    // Συνέχιση στο επόμενο
-                }
+                } catch (e) {}
             }
         }
 
-        // Αν αποτύχει η αναζήτηση ή δεν βρεθεί εικόνα, φορτώνουμε έναν σίγουρο πίνακα (Fallback)
+        // An den brei me to search, dialegei enan tuxaio pinaka apo ti lista fallbacks
         if (!selectedArt) {
-            console.log("Using fallback artwork...");
-            try {
-                const fallbackRes = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/436532`); // Van Gogh - Wheat Field
-                if (fallbackRes.ok) {
-                    selectedArt = await fallbackRes.json();
-                }
-            } catch (fallbackErr) {
-                console.error("Fallback artwork failed:", fallbackErr.message);
+            const randomFallbackId = FALLBACK_OBJECTS[Math.floor(Math.random() * FALLBACK_OBJECTS.length)];
+            const fallbackRes = await fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${randomFallbackId}`);
+            if (fallbackRes.ok) {
+                selectedArt = await fallbackRes.json();
             }
         }
 
-        if (!selectedArt) {
-            throw new Error("Could not retrieve any artwork details");
-        }
+        const title = selectedArt?.title || "Χωρίς Τίτλο";
+        const artist = selectedArt?.artistDisplayName || selectedArt?.culture || "Άγνωστος Καλλιτέχνης";
+        const imageUrl = selectedArt?.primaryImageSmall || selectedArt?.primaryImage;
 
-        const title = selectedArt.title || "Χωρίς Τίτλο";
-        const artist = selectedArt.artistDisplayName || selectedArt.culture || "Άγνωστος Καλλιτέχνης";
-        const imageUrl = selectedArt.primaryImageSmall || selectedArt.primaryImage;
-
-        // 2. OpenAI Ανάλυση (gpt-4o-mini)
         let aiText = "Δεν ήταν δυνατή η φόρτωση ανάλυσης.";
         const apiKey = (process.env.OPENAI_API_KEY || "").trim();
 
@@ -122,8 +109,6 @@ app.post("/api/art-curate", async (req, res) => {
                 const openAiData = await openAiRes.json();
                 if (openAiRes.ok && openAiData.choices && openAiData.choices[0]) {
                     aiText = openAiData.choices[0].message.content;
-                } else {
-                    console.error("OpenAI error response:", openAiData);
                 }
             } catch (openAiErr) {
                 console.error("OpenAI fetch failed:", openAiErr);
